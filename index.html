@@ -410,6 +410,13 @@ function fmtSigned(n){
   return '0';
 }
 function gainClass(n){ return n>0?'positive':(n<0?'negative':'zero'); }
+function relativeBrightness(hex){
+  const h = hex.replace('#','');
+  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+  return (r*299 + g*587 + b*114) / 1000; // 0-255, perception-weighted (YIQ)
+}
+function isPaleColor(hex){ return relativeBrightness(hex) > 128; }
+function pickTextColor(hex){ return isPaleColor(hex) ? 'var(--ink)' : '#ffffff'; }
 function teamMeta(teamKey){ return TEAMS[teamKey]; }
 function choiceMeta(teamKey, letter){
   return TEAMS[teamKey].choices.find(c=>c.code===letter);
@@ -434,8 +441,8 @@ function choicesReferenceTable(){
           const m = TEAMS[t];
           return '<tr><td>'+esc(m.label)+'</td>'
             + m.choices.map(c=>'<td>'
-                + '<span class="reveal-letter'+(c.light?' on-light':'')+'" style="width:32px;height:32px;font-size:14px;display:inline-flex;">'+c.code+'</span>'
-                + '<div class="muted" style="font-size:11px;margin-top:3px;">'+esc(c.label)+'</div>'
+                + '<span class="reveal-letter" style="width:32px;height:32px;font-size:14px;display:inline-flex;color:var(--ink);">'+c.code+'</span>'
+                + '<div style="font-size:11px;margin-top:3px;font-weight:700;color:'+c.hex+';'+(isPaleColor(c.hex)?'text-shadow:0 0 1px rgba(27,42,65,0.45);':'')+'">'+esc(c.label)+'</div>'
                 + '</td>').join('')
             + '</tr>';
         }).join('')
@@ -748,7 +755,7 @@ const App = {
       body = '<div class="card center">'
         + '<span class="badge badge-progress">Tour '+game.currentRound+' / '+game.roundsPlanned+'</span>'
         + '<div style="margin:14px 0;">'
-        +   '<div class="reveal-letter'+(cm.light?' on-light':'')+'" style="background:'+cm.hex+';margin:0 auto;">'+cm.code+'</div>'
+        +   '<div class="reveal-letter" style="background:'+cm.hex+';color:var(--ink);margin:0 auto;">'+cm.code+'</div>'
         + '</div>'
         + '<div class="row" style="justify-content:center;gap:8px;"><span class="pulse-dot"></span><span class="muted">Choix enregistr\u00e9 \u2014 en attente des autres \u00e9quipages\u2026</span></div>'
         + '</div>'
@@ -758,8 +765,8 @@ const App = {
         + '<span class="badge badge-progress">Tour '+game.currentRound+' / '+game.roundsPlanned+'</span>'
         + '<p class="muted" style="margin:10px 0 14px;">Faites votre choix. Une fois valid\u00e9, il ne pourra plus \u00eatre chang\u00e9 pour ce tour.</p>'
         + '<div class="choice-grid">'
-        +   meta.choices.map(c => '<button class="choice-btn'+(c.light?' on-light':'')+'" style="background:'+c.hex+';" onclick="App.submitChoiceUI(\''+c.code+'\')">'
-              + '<span class="swatch-letter">'+c.code+'</span><span>'+esc(c.label)+'</span></button>').join('')
+        +   meta.choices.map(c => '<button class="choice-btn" style="background:'+c.hex+';color:'+pickTextColor(c.hex)+';" onclick="App.submitChoiceUI(\''+c.code+'\')">'
+              + '<span class="swatch-letter" style="color:var(--ink);">'+c.code+'</span><span>'+esc(c.label)+'</span></button>').join('')
         + '</div>'
         + '</div>'
         + referenceDetails();
@@ -772,12 +779,14 @@ const App = {
       + totalBadge
       + body
       + (history ? '<div class="card"><h3 style="font-size:15px;margin-bottom:10px;">Journal de bord</h3>'+history+'</div>' : '')
+      + this.totalsRecapCard(game)
       + '</div>';
   },
   comboBlock(r){
     return '<div class="reveal-combo">'
-      + TEAM_ORDER.map(t=>{ const cm = choiceMeta(t, r[t]); return '<div class="reveal-letter'+(cm.light?' on-light':'')+'" style="background:'+cm.hex+';">'+cm.code+'</div>'; }).join('')
+      + TEAM_ORDER.map(t=>{ const cm = choiceMeta(t, r[t]); return '<div class="reveal-letter" style="background:'+cm.hex+';color:var(--ink);">'+cm.code+'</div>'; }).join('')
       + '</div>'
+      + '<div class="muted" style="text-align:center;font-size:12px;margin-top:4px;">Combinaison\u00a0: <span class="cell-letter" style="font-size:14px;color:var(--ink);">'+r.pinta+r.santaMaria+r.nina+'</span></div>'
       + '<div class="row" style="justify-content:center;gap:16px;margin-top:6px;">'
       + TEAM_ORDER.concat(['armateur']).map(t=>{
           const label = t==='armateur' ? 'Armateur' : TEAMS[t].label.replace('La ','');
@@ -792,7 +801,9 @@ const App = {
     let running = 0;
     const lines = rows.map(({r,i})=>{
       running += r.gains[team];
+      const combo = r.pinta + r.santaMaria + r.nina;
       return '<div class="history-row"><span class="rn num">#'+(i+1)+'</span>'
+        + '<span class="cell-letter" style="color:var(--ink-soft);font-size:12px;">'+esc(combo)+'</span>'
         + '<span class="cell-letter">'+esc(r[team])+'</span>'
         + '<span class="gain '+gainClass(r.gains[team])+' num">'+fmtSigned(r.gains[team])+'</span>'
         + '<span class="spacer"></span>'
